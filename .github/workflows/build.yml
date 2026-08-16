@@ -1,0 +1,133 @@
+# Build and publish Flutter SDK images.
+#
+# Replaces the upstream Cirrus CI setup, which hardcoded the Flutter version in
+# a matrix in .cirrus.yml and needed a human to edit it on every release. That
+# is the maintenance this fork exists to remove: the version is resolved from
+# Flutter's own release manifest at run time, so a new stable publishes itself.
+#
+# Runs daily and on demand. A channel whose current version is already
+# published is skipped, so the usual run does nothing and costs a few seconds.
+#
+# Publishes to GHCR with no secret beyond the built-in GITHUB_TOKEN. Docker Hub
+# is opt-in: set DOCKERHUB_USERNAME and DOCKERHUB_TOKEN and it mirrors there
+# too, and stays skipped while they are unset.
+
+name: Build images
+
+on:
+  schedule:
+    # 04:15 UTC daily. Flutter stable lands during US working hours, so this
+    # picks a release up the following morning without polling all day.
+    - cron: "15 4 * * *"
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "Channel to build (stable, beta, or all)"
+        required: false
+        default: all
+      force:
+        description: "Rebuild even if the tag already exists"
+        type: boolean
+        required: false
+        default: false
+  pull_request:
+    paths:
+      - sdk/Dockerfile
+      - .github/workflows/build.yml
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: build-images
+  cancel-in-progress: false
+
+jobs:
+  # Ask Flutter what the current versions are, and drop any channel already
+  # published. The output is the build matrix, so a day with no new release
+  # produces an empty matrix and no build jobs at all.
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      any: ${{ steps.plan.outputs.any }}
+      image: ${{ steps.image.outputs.image }}
+    steps:
+      # A container reference must be lowercase and a GitHub owner need not
+      # be, so an owner like `Project516` cannot be pasted into a tag as-is.
+      # Computed once here and passed down, rather than lowercased at each
+      # of the four places that build a tag.
+      - name: Resolve the image name
+        id: image
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: echo "image=ghcr.io/${OWNER,,}/flutter" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve versions and skip what is already published
+        id: plan
+        env:
+          WANTED: ${{ inputs.channel || 'all' }}
+          FORCE: ${{ inputs.force || 'false' }}
+          IS_PR: ${{ github.event_name == 'pull_request' }}
+          REGISTRY_IMAGE: ${{ steps.image.outputs.image }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -o releases.json \
+            https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json
+
+          # A PR only proves the Dockerfile still builds, so it builds one
+          # image and pushes nothing.
+          if [ "$IS_PR" = "true" ]; then
+            WANTED=stable
+          fi
+
+          include='[]'
+          for channel in stable beta; do
+            if [ "$WANTED" != "all" ] && [ "$WANTED" != "$channel" ]; then
+              continue
+            fi
+            version="$(jq -r --arg c "$channel" '
+              .current_release[$c] as $hash
+              | (.releases[] | select(.hash == $hash and .channel == $c) | .version)
+            ' releases.json | head -n1)"
+            if [ -z "$version" ] || [ "$version" = "null" ]; then
+              echo "Could not resolve $channel; skipping." >&2
+              continue
+            fi
+
+            # Docker tags cannot contain '+', which a hotfix version can.
+            tag="${version//+/-}"
+
+            if [ "$FORCE" != "true" ] && [ "$IS_PR" != "true" ]; then
+              if docker manifest inspect "${REGISTRY_IMAGE}:${tag}" >/dev/null 2>&1; then
+                echo "$channel $version is already published; skipping."
+                continue
+              fi
+            fi
+
+            echo "Will build $channel $version."
+            include="$(jq -c --arg c "$channel" --arg v "$version" --arg t "$tag" \
+              '. + [{channel: $c, version: $v, tag: $t}]' <<<"$include")"
+          done
+
+          echo "matrix=$(jq -c '{include: .}' <<<"$include")" >> "$GITHUB_OUTPUT"
+          echo "any=$(jq -r 'length > 0' <<<"$include")" >> "$GITHUB_OUTPUT"
+
+  # One runner per architecture, each native. Building arm64 under QEMU on an
+  # amd64 runner takes hours for this image, because `flutter precache` and the
+  # Android SDK layers are emulated the whole way.
+  build:
+    needs: resolve
+    if: needs.resolve.outputs.any == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.resolve.outputs.matrix) }}
+    uses: ./.github/workflows/build-one.yml
+    with:
+      channel: ${{ matrix.channel }}
+      version: ${{ matrix.version }}
+      tag: ${{ matrix.tag }}
+      image: ${{ needs.resolve.outputs.image }}
+      push: ${{ github.event_name != 'pull_request' }}
+    secrets: inherit
