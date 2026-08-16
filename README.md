@@ -62,6 +62,12 @@ the same wound-down project and is also frozen. It works today; if the Android
 SDK level needs to move, that base image is the thing to replace, and it is the
 one piece of upstream this fork still depends on.
 
+One rough edge from it: on arm64 that base image ships an amd64 `adb`, so
+`flutter doctor` reports it cannot run `adb`. The build still succeeds and the
+image is still usable, because a CI image compiles and tests rather than
+talking to a device. Worth knowing before someone reads the doctor output and
+assumes the image is broken.
+
 ## Licence
 
 Apache 2.0, as upstream. See [LICENSE](LICENSE).
