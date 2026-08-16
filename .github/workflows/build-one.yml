@@ -1,0 +1,159 @@
+# Builds one Flutter version for both architectures and publishes it.
+#
+# Split into a reusable workflow so build.yml stays about *which* versions to
+# build and this stays about *how*.
+#
+# Each architecture builds on its own native runner rather than under QEMU.
+# This image runs `flutter precache` and an Android SDK layer, and emulating
+# that for arm64 on an amd64 runner turns a ten-minute build into hours.
+# Per-arch builds push by digest, then a merge job stitches them into one
+# manifest list, which is the documented multi-platform pattern.
+
+name: Build one version
+
+on:
+  workflow_call:
+    inputs:
+      channel:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      tag:
+        required: true
+        type: string
+      push:
+        required: true
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY_IMAGE: ghcr.io/${{ github.repository_owner }}/flutter
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            slug: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            slug: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: inputs.push
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build ${{ matrix.platform }}
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: sdk
+          platforms: ${{ matrix.platform }}
+          build-args: flutter_version=${{ inputs.version }}
+          # By digest, with no tag. The tags go on the manifest list below, so
+          # a half-finished multi-arch build never leaves `stable` pointing at
+          # one architecture.
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=${{ inputs.push }}
+          cache-from: type=gha,scope=${{ inputs.channel }}-${{ matrix.slug }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.channel }}-${{ matrix.slug }}
+
+      - name: Export the digest
+        if: inputs.push
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/digests
+          # The artifact filename is the bare digest; the merge job re-adds
+          # the sha256: prefix. Expression syntax cannot strip it, so shell does.
+          touch "/tmp/digests/${DIGEST#sha256:}"
+
+      - name: Upload the digest
+        if: inputs.push
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ inputs.channel }}-${{ matrix.slug }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+  merge:
+    needs: build
+    if: inputs.push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download the digests
+        uses: actions/download-artifact@v5
+        with:
+          pattern: digest-${{ inputs.channel }}-*
+          path: /tmp/digests
+          merge-multiple: true
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create the manifest list
+        working-directory: /tmp/digests
+        run: |
+          set -euo pipefail
+          # The exact version, and the channel it is currently the head of.
+          # `latest` follows stable, which is what an unqualified pull means.
+          tags=(--tag "${REGISTRY_IMAGE}:${{ inputs.tag }}"
+                --tag "${REGISTRY_IMAGE}:${{ inputs.channel }}")
+          if [ "${{ inputs.channel }}" = "stable" ]; then
+            tags+=(--tag "${REGISTRY_IMAGE}:latest")
+          fi
+          docker buildx imagetools create "${tags[@]}" \
+            $(printf "${REGISTRY_IMAGE}@sha256:%s " *)
+
+      - name: Show what was published
+        run: docker buildx imagetools inspect "${REGISTRY_IMAGE}:${{ inputs.tag }}"
+
+  # Docker Hub is opt-in. With the secrets unset this is skipped, so a fork
+  # publishing only to GHCR needs no configuration at all.
+  mirror-dockerhub:
+    needs: merge
+    if: inputs.push && vars.DOCKERHUB_REPO != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Copy the manifest list across
+        run: |
+          set -euo pipefail
+          tags=(--tag "${{ vars.DOCKERHUB_REPO }}:${{ inputs.tag }}"
+                --tag "${{ vars.DOCKERHUB_REPO }}:${{ inputs.channel }}")
+          if [ "${{ inputs.channel }}" = "stable" ]; then
+            tags+=(--tag "${{ vars.DOCKERHUB_REPO }}:latest")
+          fi
+          docker buildx imagetools create "${tags[@]}" \
+            "${REGISTRY_IMAGE}:${{ inputs.tag }}"
