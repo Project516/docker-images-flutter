@@ -113,7 +113,7 @@ another base image are all fair.
 
 ## Licence
 
-Apache 2.0, as upstream. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
 
 [upstream]: https://github.com/cirruslabs/docker-images-flutter
 [notice]: https://github.com/cirruslabs/docker-images-flutter/blob/master/README.md

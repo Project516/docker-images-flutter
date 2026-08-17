@@ -32,8 +32,9 @@ on:
         default: false
   pull_request:
     paths:
-      - sdk/Dockerfile
+      - sdk/**
       - .github/workflows/build.yml
+      - .github/workflows/build-one.yml
 
 permissions:
   contents: read
