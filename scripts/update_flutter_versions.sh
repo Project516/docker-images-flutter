@@ -5,7 +5,10 @@ set -e
 # sdk/versions.env so the "Check Flutter versions" workflow can track
 # changes via pull requests.
 
-releases_json=$(curl -s https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json)
+releases_json=$(curl -sS --fail --show-error \
+  --connect-timeout 10 --max-time 30 \
+  --retry 3 --retry-delay 5 \
+  https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json)
 
 # Get the latest version for a given channel (stable, beta, etc.)
 get_latest_version_in_channel() {
