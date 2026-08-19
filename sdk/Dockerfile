@@ -1,9 +1,10 @@
-FROM eclipse-temurin:21-jdk-noble
+FROM eclipse-temurin:21-jdk-noble@sha256:07d9692c2269232ebd4d45ed6b2bd520e04eb38a31ab5d3253c38ef0e90b40c5
 
 USER root
 
 # Pinned versions. Bumping any of these is a one-line change.
 ARG flutter_version
+ARG flutter_commit
 ARG ANDROID_CMDLINE_TOOLS_VERSION=13114758
 ARG ANDROID_PLATFORM=android-36
 ARG ANDROID_BUILD_TOOLS=36.0.0
@@ -28,6 +29,7 @@ RUN apt-get update \
 RUN mkdir -p ${ANDROID_HOME}/cmdline-tools \
  && cd /tmp \
  && wget -q "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS_VERSION}_latest.zip" -O cmdline-tools.zip \
+ && echo "7ec965280a073311c339e571cd5de778b9975026cfcbe79f2b1cdcb1e15317ee  cmdline-tools.zip" | sha256sum -c - \
  && unzip -q cmdline-tools.zip -d ${ANDROID_HOME}/cmdline-tools \
  && mv ${ANDROID_HOME}/cmdline-tools/cmdline-tools ${ANDROID_HOME}/cmdline-tools/latest \
  && rm cmdline-tools.zip
@@ -40,9 +42,12 @@ RUN yes | sdkmanager --licenses > /dev/null \
         "platforms;${ANDROID_PLATFORM}" \
         "build-tools;${ANDROID_BUILD_TOOLS}"
 
-# Clone Flutter at the requested tag.
-RUN git clone --depth 1 --branch ${FLUTTER_VERSION} \
-        https://github.com/flutter/flutter.git ${FLUTTER_HOME}
+# Clone Flutter at the verified commit from the release manifest.
+RUN git init ${FLUTTER_HOME} \
+ && cd ${FLUTTER_HOME} \
+ && git remote add origin https://github.com/flutter/flutter.git \
+ && git fetch --depth 1 origin ${flutter_commit} \
+ && git checkout FETCH_HEAD
 
 # Accept licenses and run doctor. Fail loudly if precache fails: no `|| true`
 # masking a broken artifact cache.
@@ -50,8 +55,9 @@ RUN yes | flutter doctor --android-licenses > /dev/null \
  && flutter doctor \
  && flutter precache --android
 
-# Make the SDK writable by any user and mark it as a safe git directory.
-# This allows `docker run --user "$(id -u):$(id -g)"` so bind-mounted worktrees
-# stay owned by the host user. See Project516/docker-images-flutter#6.
-RUN chmod -R a+rwX "${FLUTTER_ROOT}" "${ANDROID_HOME}" \
+# Make only the Flutter cache writable for non-root users.
+# Toolchain binaries, SDK packages, and .git metadata stay read-only
+# to prevent untrusted modification of build tools.
+# See Project516/docker-images-flutter#6.
+RUN chmod -R a+rwX "${FLUTTER_HOME}/bin/cache" \
  && git config --system --add safe.directory "${FLUTTER_ROOT}"

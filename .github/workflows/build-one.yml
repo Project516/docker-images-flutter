@@ -20,6 +20,9 @@ on:
       version:
         required: true
         type: string
+      commit:
+        required: true
+        type: string
       tag:
         required: true
         type: string
@@ -74,7 +77,9 @@ jobs:
         with:
           context: sdk
           platforms: ${{ matrix.platform }}
-          build-args: flutter_version=${{ inputs.version }}
+          build-args: |
+            flutter_version=${{ inputs.version }}
+            flutter_commit=${{ inputs.commit }}
           # By digest, with no tag. The tags go on the manifest list below, so
           # a half-finished multi-arch build never leaves `stable` pointing at
           # one architecture.
