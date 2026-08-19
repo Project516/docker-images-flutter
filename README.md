@@ -98,7 +98,7 @@ unset and that job is skipped, so a fork of this works with no setup at all.
 
 `sdk/Dockerfile` builds on `eclipse-temurin:21-jdk-noble` (pinned to an
 immutable digest) and installs the Android SDK directly via Google's
-command-line tools. No upstream image dependency remains.
+command-line tools. No Cirrus Labs Android SDK image dependency remains.
 
 On arm64, Google does not publish a native Linux `platform-tools` package, so
 `adb` is x86_64-only. `flutter doctor` will report it cannot run `adb`, but the

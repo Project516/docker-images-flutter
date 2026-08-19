@@ -42,11 +42,15 @@ RUN yes | sdkmanager --licenses > /dev/null \
         "platforms;${ANDROID_PLATFORM}" \
         "build-tools;${ANDROID_BUILD_TOOLS}"
 
-# Clone Flutter at the verified commit from the release manifest.
-RUN git init ${FLUTTER_HOME} \
+# Validate the commit hash before fetching to fail closed on missing or
+# malformed values. A shallow fetch of an explicit SHA is safe regardless
+# of the default refspec.
+RUN test -n "${flutter_commit}" \
+ && echo "${flutter_commit}" | grep -qxE '[0-9a-f]{40}' \
+ && git init ${FLUTTER_HOME} \
  && cd ${FLUTTER_HOME} \
  && git remote add origin https://github.com/flutter/flutter.git \
- && git fetch --depth 1 origin ${flutter_commit} \
+ && git fetch --depth 1 origin "${flutter_commit}" \
  && git checkout FETCH_HEAD
 
 # Accept licenses and run doctor. Fail loudly if precache fails: no `|| true`
@@ -55,9 +59,9 @@ RUN yes | flutter doctor --android-licenses > /dev/null \
  && flutter doctor \
  && flutter precache --android
 
-# Make only the Flutter cache writable for non-root users.
-# Toolchain binaries, SDK packages, and .git metadata stay read-only
-# to prevent untrusted modification of build tools.
+# Make only the download caches writable for non-root users.
+# Toolchain binaries (flutter_tools.snapshot, dart-sdk) and .git metadata
+# stay read-only to prevent untrusted modification of build tools.
 # See Project516/docker-images-flutter#6.
-RUN chmod -R a+rwX "${FLUTTER_HOME}/bin/cache" \
+RUN chmod -R a+rwX "${FLUTTER_HOME}/bin/cache/artifacts" \
  && git config --system --add safe.directory "${FLUTTER_ROOT}"
