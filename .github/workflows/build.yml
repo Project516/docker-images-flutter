@@ -92,6 +92,10 @@ jobs:
               .current_release[$c] as $hash
               | (.releases[] | select(.hash == $hash and .channel == $c) | .version)
             ' releases.json | head -n1)"
+            commit="$(jq -r --arg c "$channel" '
+              .current_release[$c] as $hash
+              | (.releases[] | select(.hash == $hash and .channel == $c) | .hash)
+            ' releases.json | head -n1)"
             if [ -z "$version" ] || [ "$version" = "null" ]; then
               echo "Could not resolve $channel; skipping." >&2
               continue
@@ -108,8 +112,8 @@ jobs:
             fi
 
             echo "Will build $channel $version."
-            include="$(jq -c --arg c "$channel" --arg v "$version" --arg t "$tag" \
-              '. + [{channel: $c, version: $v, tag: $t}]' <<<"$include")"
+            include="$(jq -c --arg c "$channel" --arg v "$version" --arg t "$tag" --arg h "$commit" \
+              '. + [{channel: $c, version: $v, tag: $t, commit: $h}]' <<<"$include")"
           done
 
           echo "matrix=$(jq -c '{include: .}' <<<"$include")" >> "$GITHUB_OUTPUT"
@@ -129,6 +133,7 @@ jobs:
       channel: ${{ matrix.channel }}
       version: ${{ matrix.version }}
       tag: ${{ matrix.tag }}
+      commit: ${{ matrix.commit }}
       image: ${{ needs.resolve.outputs.image }}
       push: ${{ github.event_name != 'pull_request' }}
     secrets: inherit

@@ -96,15 +96,14 @@ unset and that job is skipped, so a fork of this works with no setup at all.
 
 ## Known rough edges
 
-`sdk/Dockerfile` builds on `ghcr.io/cirruslabs/android-sdk:36`, which is from
-the same wound-down project and is also frozen. It works today; if the Android
-SDK level needs to move, that base image is the thing to replace, and it is the
-one piece of upstream still in the chain.
+`sdk/Dockerfile` builds on `eclipse-temurin:21-jdk-noble` (pinned to an
+immutable digest) and installs the Android SDK directly via Google's
+command-line tools. No Cirrus Labs Android SDK image dependency remains.
 
-On arm64 that base image ships an amd64 `adb`, so `flutter doctor` reports it
-cannot run `adb`. The build succeeds and the image is fine for compiling and
-testing, which is what it is for. Worth knowing before someone reads the doctor
-output and assumes the image is broken.
+On arm64, Google does not publish a native Linux `platform-tools` package, so
+`adb` is x86_64-only. `flutter doctor` will report it cannot run `adb`, but the
+build succeeds and the image is fine for compiling and testing. Worth knowing
+before someone reads the doctor output and assumes the image is broken.
 
 ## Issues
 
