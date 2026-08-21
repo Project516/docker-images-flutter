@@ -11,10 +11,11 @@
 #
 # Before anything is pushed, each build is loaded into the runner's local
 # Docker daemon and smoke-tested against a throwaway Flutter project: `flutter
-# create`, `flutter pub get`, and a debug APK build. A build that only proves
-# `flutter doctor` passes can still be unusable downstream -- that is exactly
-# how #3 slipped through -- so this exercises the same Gradle wrapper /
-# artifact-cache path a real consumer hits, on both architectures.
+# create`, `flutter pub get`, and the Gradle wrapper on both architectures,
+# plus a debug APK build on amd64. A build that only proves `flutter doctor`
+# passes can still be unusable downstream -- that is exactly how #3 slipped
+# through -- so this exercises the same Gradle wrapper / artifact-cache path a
+# real consumer hits.
 
 name: Build one version
 
@@ -102,7 +103,7 @@ jobs:
           tags: smoke-test:${{ matrix.slug }}
           cache-from: type=gha,scope=${{ inputs.channel }}-${{ matrix.slug }}
 
-      - name: Smoke test - pub get and a debug APK build
+      - name: Smoke test - pub get and the Gradle wrapper
         timeout-minutes: 20
         run: |
           set -euo pipefail
@@ -111,6 +112,22 @@ jobs:
             flutter create smoke
             cd smoke
             flutter pub get
+            cd android && ./gradlew --version
+          '
+
+      # The Linux Android SDK build-tools and platform-tools are published as
+      # x86_64 binaries only, so aapt2 and adb cannot run in the arm64 image
+      # and an APK build there fails inside Gradle (see issue #12). pub get and
+      # the wrapper above still cover the #3 regression on both arches.
+      - name: Smoke test - debug APK build (amd64)
+        if: matrix.slug == 'amd64'
+        timeout-minutes: 25
+        run: |
+          set -euo pipefail
+          docker run --rm -w /tmp "smoke-test:${{ matrix.slug }}" bash -lc '
+            set -euo pipefail
+            flutter create smoke_apk
+            cd smoke_apk
             flutter build apk --debug
           '
 
