@@ -103,7 +103,12 @@ jobs:
         with:
           context: sdk
           platforms: ${{ matrix.platform }}
-          build-args: flutter_version=${{ inputs.version }}
+          # Must match the build step's args exactly, or this is a cache miss
+          # that rebuilds from scratch, and the Dockerfile's required
+          # flutter_commit check fails outright.
+          build-args: |
+            flutter_version=${{ inputs.version }}
+            flutter_commit=${{ inputs.commit }}
           load: true
           tags: smoke-test:${{ matrix.slug }}
           cache-from: type=gha,scope=${{ inputs.channel }}-${{ matrix.slug }}
