@@ -55,13 +55,24 @@ RUN yes | sdkmanager --licenses > /dev/null \
 # Validate the commit hash before fetching to fail closed on missing or
 # malformed values. A shallow fetch of an explicit SHA is safe regardless
 # of the default refspec.
+#
+# The version tag is fetched alongside the commit, and checked out by name
+# rather than as FETCH_HEAD, because Flutter derives its own version from
+# `git describe --tags`. On a detached FETCH_HEAD with no tags present it
+# reports 0.0.0-unknown, and then `pub get` fails in any project that depends
+# on flutter_test, since the SDK constraint cannot be satisfied by a version
+# that does not parse. The image builds and `flutter doctor` passes either way,
+# which is exactly the shape of failure the smoke test exists to catch.
 RUN test -n "${flutter_commit}" \
  && echo "${flutter_commit}" | grep -qxE '[0-9a-f]{40}' \
  && git init ${FLUTTER_HOME} \
  && cd ${FLUTTER_HOME} \
  && git remote add origin https://github.com/flutter/flutter.git \
  && git fetch --depth 1 origin "${flutter_commit}" \
- && git checkout FETCH_HEAD
+ && git fetch --depth 1 origin "+refs/tags/${flutter_version}:refs/tags/${flutter_version}" \
+ && git checkout "refs/tags/${flutter_version}" \
+ && test "$(git rev-parse HEAD)" = "${flutter_commit}" \
+ && flutter --version | grep -q "${flutter_version}"
 
 # Accept licenses and run doctor. Fail loudly if precache fails: no `|| true`
 # masking a broken artifact cache.
