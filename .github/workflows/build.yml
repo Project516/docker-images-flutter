@@ -39,8 +39,11 @@ permissions:
   contents: read
   packages: write
 
+# Publishing runs share one lane so two of them cannot race the same tag.
+# Pull requests push nothing, so each gets its own lane; a shared lane would
+# make every PR's required `gate` check wait on every other PR's build.
 concurrency:
-  group: build-images
+  group: ${{ github.event_name == 'pull_request' && format('build-images-pr-{0}', github.ref) || 'build-images-publish' }}
   cancel-in-progress: false
 
 jobs:

@@ -1,0 +1,46 @@
+# Catches workflow and shell mistakes before they merge.
+#
+# actionlint checks the workflow files themselves and runs shellcheck over
+# every `run:` block, which is where the mistakes that otherwise only surface
+# mid-release live: an unquoted expansion in the manifest-list step publishes a
+# broken tag, and nothing else in this repo would have said so.
+
+name: Lint
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+env:
+  ACTIONLINT_VERSION: "1.7.7"
+  ACTIONLINT_SHA256: "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install actionlint
+        run: |
+          set -euo pipefail
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL --retry 3 --retry-delay 5 -o "$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_SHA256}  ${archive}" | sha256sum --check --strict
+          tar xzf "$archive" actionlint
+
+      # shellcheck ships on the runner image, so actionlint finds it and lints
+      # every `run:` block on top of the workflow syntax.
+      - name: Lint the workflows
+        run: ./actionlint -no-color -oneline
+
+      - name: Lint the scripts
+        run: shellcheck scripts/*.sh
