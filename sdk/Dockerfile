@@ -90,12 +90,18 @@ RUN test -n "${flutter_commit}" \
 # The probe keys on how the process died rather than on its exit code: a
 # healthy flutter_tester may answer `--help` with 0 or with a usage failure,
 # but 126 and 127 mean it could not be executed at all and 128+n means a signal
-# killed it, which is what a truncated binary does.
+# killed it, which is what a partially written binary does.
+#
+# Emptiness is checked separately because running the file cannot detect it.
+# `execve` on a zero-byte file fails with ENOEXEC, the shell falls back to
+# reading it as a shell script, and an empty script exits 0, so the probe below
+# would call a zero-byte download healthy.
 RUN yes | flutter doctor --android-licenses > /dev/null \
  && flutter doctor \
  && flutter precache --android \
  && tester="$(find "${FLUTTER_HOME}/bin/cache/artifacts/engine" -name flutter_tester -type f | head -1)" \
  && { test -n "${tester}" || { echo "flutter_tester missing after precache" >&2; exit 1; }; } \
+ && { test -s "${tester}" || { echo "flutter_tester is empty: ${tester}" >&2; exit 1; }; } \
  && { "${tester}" --help > /dev/null 2>&1; status=$?; \
       if [ "${status}" -ge 126 ]; then \
         echo "flutter_tester will not run (exit ${status})" >&2; \
