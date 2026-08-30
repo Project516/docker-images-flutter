@@ -1,8 +1,9 @@
 name: "Check Flutter versions"
 on:
   schedule:
-    # Every Monday at 04:15 UTC
-    - cron: "15 4 * * 1"
+    # 03:15 UTC daily, an hour ahead of the build workflow, so a new stable
+    # shows up in the tracking PR the same morning it publishes.
+    - cron: "15 3 * * *"
   workflow_dispatch:
 
 jobs:

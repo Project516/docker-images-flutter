@@ -4,7 +4,7 @@ set -e
 # Fetches the latest stable and beta Flutter versions and writes them to
 # sdk/versions.env. This file is not consumed by the build workflow (which
 # resolves versions from Flutter's release manifest at build time), but it
-# gives the "Create Pull Request" step a diff to track, producing a weekly
+# gives the "Create Pull Request" step a diff to track, producing a nightly
 # PR that documents which Flutter versions are current.
 
 releases_json=$(curl -sS --fail --show-error \
