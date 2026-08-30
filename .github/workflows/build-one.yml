@@ -11,11 +11,13 @@
 #
 # Before anything is pushed, each build is loaded into the runner's local
 # Docker daemon and smoke-tested against a throwaway Flutter project: `flutter
-# create`, `flutter pub get`, and the Gradle wrapper on both architectures,
-# plus a debug APK build on amd64. A build that only proves `flutter doctor`
-# passes can still be unusable downstream -- that is exactly how #3 slipped
-# through -- so this exercises the same Gradle wrapper / artifact-cache path a
-# real consumer hits.
+# create`, `flutter pub get`, `flutter test`, and the Gradle wrapper on both
+# architectures, plus a debug APK build on amd64. A build that only proves
+# `flutter doctor` passes can still be unusable downstream -- that is exactly
+# how #3 slipped through -- so this exercises the same engine artifacts,
+# Gradle wrapper and artifact cache a real consumer hits. `flutter test` is
+# there because it is the one command that runs flutter_tester, and the 3.47.1
+# image shipped that binary truncated.
 
 name: Build one version
 
@@ -113,7 +115,7 @@ jobs:
           tags: smoke-test:${{ matrix.slug }}
           cache-from: type=gha,scope=${{ inputs.channel }}-${{ matrix.slug }}
 
-      - name: Smoke test - pub get and the Gradle wrapper
+      - name: Smoke test - pub get, flutter test, and the Gradle wrapper
         timeout-minutes: 20
         run: |
           set -euo pipefail
@@ -122,6 +124,7 @@ jobs:
             flutter create smoke
             cd smoke
             flutter pub get
+            flutter test
             cd android && ./gradlew --version
           '
 
