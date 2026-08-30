@@ -196,8 +196,18 @@ jobs:
           if [ "${{ inputs.channel }}" = "stable" ]; then
             tags+=(--tag "${REGISTRY_IMAGE}:latest")
           fi
-          docker buildx imagetools create "${tags[@]}" \
-            $(printf "${REGISTRY_IMAGE}@sha256:%s " *)
+          # Each downloaded artifact is named for the digest it carries.
+          shopt -s nullglob
+          sources=()
+          for digest in *; do
+            sources+=("${REGISTRY_IMAGE}@sha256:${digest}")
+          done
+          if [ ${#sources[@]} -eq 0 ]; then
+            echo "No digests to stitch into a manifest list." >&2
+            exit 1
+          fi
+
+          docker buildx imagetools create "${tags[@]}" "${sources[@]}"
 
       - name: Show what was published
         run: docker buildx imagetools inspect "${REGISTRY_IMAGE}:${{ inputs.tag }}"

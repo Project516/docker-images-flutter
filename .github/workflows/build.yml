@@ -30,18 +30,20 @@ on:
         type: boolean
         required: false
         default: false
+  # No path filter: `gate` is a required check on master, and a check that
+  # never runs never reports, which blocks the PR forever. Every PR pays one
+  # image build so every PR can report.
   pull_request:
-    paths:
-      - sdk/**
-      - .github/workflows/build.yml
-      - .github/workflows/build-one.yml
 
 permissions:
   contents: read
   packages: write
 
+# Publishing runs share one lane so two of them cannot race the same tag.
+# Pull requests push nothing, so each gets its own lane; a shared lane would
+# make every PR's required `gate` check wait on every other PR's build.
 concurrency:
-  group: build-images
+  group: ${{ github.event_name == 'pull_request' && format('build-images-pr-{0}', github.ref) || 'build-images-publish' }}
   cancel-in-progress: false
 
 jobs:
@@ -137,3 +139,29 @@ jobs:
       image: ${{ needs.resolve.outputs.image }}
       push: ${{ github.event_name != 'pull_request' }}
     secrets: inherit
+
+  # The one check branch protection names. The build jobs carry the Flutter
+  # version and commit in their check names, so those names change on every
+  # release and cannot be written into a protection rule. This job's name does
+  # not move.
+  gate:
+    needs: [resolve, build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if anything upstream failed
+        env:
+          RESOLVE: ${{ needs.resolve.result }}
+          BUILD: ${{ needs.build.result }}
+        run: |
+          set -eu
+          echo "resolve=$RESOLVE build=$BUILD"
+          for result in "$RESOLVE" "$BUILD"; do
+            case "$result" in
+              success | skipped) ;;
+              *)
+                echo "Upstream job finished as: $result" >&2
+                exit 1
+                ;;
+            esac
+          done
