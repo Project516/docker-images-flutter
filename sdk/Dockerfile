@@ -76,9 +76,39 @@ RUN test -n "${flutter_commit}" \
 
 # Accept licenses and run doctor. Fail loudly if precache fails: no `|| true`
 # masking a broken artifact cache.
+#
+# Then prove the engine artifacts precache just wrote actually run. A truncated
+# download leaves a binary that segfaults on startup, and nothing else in this
+# build touches it: `flutter doctor` passes, `pub get` passes and the Gradle
+# wrapper passes, so the failure surfaces only downstream, as every
+# `flutter test` dying with "Shell subprocess crashed with segmentation fault".
+# The published 3.47.1 image shipped a flutter_tester truncated to 24 MiB
+# against the 49 MB it should be, and read as broken tests in the consuming
+# repo. The smoke test in build-one.yml catches that before publishing, but it
+# runs in CI and not here, so a local `docker build` gets no such warning.
+#
+# The probe keys on how the process died rather than on its exit code: a
+# healthy flutter_tester may answer `--help` with 0 or with a usage failure,
+# but 126 and 127 mean it could not be executed at all and 128+n means a signal
+# killed it, which is what a partially written binary does.
+#
+# Emptiness is checked separately because running the file cannot detect it.
+# `execve` on a zero-byte file fails with ENOEXEC, the shell falls back to
+# reading it as a shell script, and an empty script exits 0, so the probe below
+# would call a zero-byte download healthy.
 RUN yes | flutter doctor --android-licenses > /dev/null \
  && flutter doctor \
- && flutter precache --android
+ && flutter precache --android \
+ && tester="$(find "${FLUTTER_HOME}/bin/cache/artifacts/engine" -name flutter_tester -type f | head -1)" \
+ && { test -n "${tester}" || { echo "flutter_tester missing after precache" >&2; exit 1; }; } \
+ && { test -s "${tester}" || { echo "flutter_tester is empty: ${tester}" >&2; exit 1; }; } \
+ && { "${tester}" --help > /dev/null 2>&1; status=$?; \
+      if [ "${status}" -ge 126 ]; then \
+        echo "flutter_tester will not run (exit ${status})" >&2; \
+        ls -l "${tester}" >&2; \
+        exit 1; \
+      fi; } \
+ && echo "engine artifacts verified: ${tester}"
 
 # Make only the download caches writable for non-root users.
 # Toolchain binaries (flutter_tools.snapshot, dart-sdk) and .git metadata
