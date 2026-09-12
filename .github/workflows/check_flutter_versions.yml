@@ -23,16 +23,13 @@ jobs:
       - name: Check for new Flutter versions
         run: sh scripts/update_flutter_versions.sh
 
-      # Create a Pull Request if there are any changes.
-      # This is automatically checked internally.
-      #
-      # The default GITHUB_TOKEN cannot trigger other workflows. If you want
-      # version-update PRs to also trigger the build workflow, create a PAT
-      # with repo scope and pass it here:
-      #   token: ${{ secrets.BOT_PAT }}
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8
         with:
           commit-message: "chore: Update Flutter version"
           title: "chore: Update Flutter version"
           branch: "chore/update-flutter-version"
+          # GITHUB_TOKEN cannot trigger other workflows, so the gate and lint
+          # checks never start and the PR sits blocked forever. A PAT passed
+          # here triggers them normally.
+          token: ${{ secrets.VERSION_BUMP_TOKEN }}

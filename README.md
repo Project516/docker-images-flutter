@@ -3,11 +3,7 @@
 Container images with the Flutter SDK and the Android SDK, published for every
 Flutter stable and beta release.
 
-Started as a fork of [cirruslabs/docker-images-flutter][upstream], which
-[stopped publishing on 1 May 2026][notice] when Cirrus Labs wound down after an
-acquisition. Its `stable` tag is frozen at Flutter 3.44.0 and will not move
-again. This is not a patch queue waiting to go upstream: there is no upstream
-left to send it to, so the images are maintained here.
+Originally started as a fork of [cirruslabs/docker-images-flutter](https://github.com/cirruslabs/docker-images-flutter).
 
 ```bash
 podman run --rm -it -v "$PWD":/build:z --workdir /build \
@@ -82,9 +78,6 @@ SDK layer turns a ten-minute build into an hours-long one. Tags go only on the
 manifest, so a half-finished build never leaves `stable` pointing at one
 architecture.
 
-To build a version by hand, run the workflow from the Actions tab. It takes a
-channel and a force flag for rebuilding something already published.
-
 ## Publishing somewhere else
 
 GHCR needs no configuration: the built-in `GITHUB_TOKEN` is enough.
@@ -113,14 +106,6 @@ On arm64, Google does not publish a native Linux `platform-tools` package, so
 build succeeds and the image is fine for compiling and testing. Worth knowing
 before someone reads the doctor output and assumes the image is broken.
 
-## Issues
-
-Open one. Bugs, a Flutter version that did not publish, or a request for
-another base image are all fair.
-
 ## Licence
 
 MIT. See [LICENSE](LICENSE).
-
-[upstream]: https://github.com/cirruslabs/docker-images-flutter
-[notice]: https://github.com/cirruslabs/docker-images-flutter/blob/master/README.md
