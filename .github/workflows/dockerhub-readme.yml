@@ -21,6 +21,9 @@ on:
 permissions:
   contents: read
 
+env:
+  SHORT_DESCRIPTION: "Flutter SDK images with the Android SDK, built daily from Flutter's release manifest. amd64/arm64."
+
 jobs:
   describe:
     if: vars.DOCKERHUB_REPO != ''
@@ -46,6 +49,17 @@ jobs:
             exit 1
           fi
 
+      # Docker Hub truncates past 100 characters silently and mid-word, and
+      # the action reports nothing, so an over-long edit would only show up
+      # as a mangled word on the public page.
+      - name: Check the short description fits
+        run: |
+          set -euo pipefail
+          if [ "${#SHORT_DESCRIPTION}" -gt 100 ]; then
+            echo "Short description is ${#SHORT_DESCRIPTION} characters, cap is 100." >&2
+            exit 1
+          fi
+
       - name: Push it to Docker Hub
         uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5.0.0
         with:
@@ -53,6 +67,4 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: ${{ vars.DOCKERHUB_REPO }}
           readme-filepath: /tmp/dockerhub-readme.md
-          # Docker Hub truncates this at 100 characters, silently and
-          # mid-word, so it has to be counted rather than eyeballed.
-          short-description: "Flutter SDK images with the Android SDK, built daily from Flutter's release manifest. amd64/arm64."
+          short-description: ${{ env.SHORT_DESCRIPTION }}
