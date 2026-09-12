@@ -1,0 +1,56 @@
+# Keeps the Docker Hub repository page in step with README.md.
+#
+# Docker Hub has no equivalent of GHCR's "link the package to the repo", so its
+# description is a copy that goes stale the moment README.md changes. Pushing
+# it from master is the only way that stays true.
+#
+# The README is written for GHCR, so the pull commands name the wrong registry
+# for a reader who arrived on Docker Hub. Rewriting them on the way out keeps
+# one README in the repo instead of a second one that drifts.
+
+name: Docker Hub readme
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - README.md
+      - .github/workflows/dockerhub-readme.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  describe:
+    if: vars.DOCKERHUB_REPO != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Point the pull commands at Docker Hub
+        env:
+          OWNER: ${{ github.repository_owner }}
+          DOCKERHUB_REPO: ${{ vars.DOCKERHUB_REPO }}
+        run: |
+          set -euo pipefail
+          sed "s|ghcr.io/${OWNER,,}/flutter|${DOCKERHUB_REPO}|g" \
+            README.md > /tmp/dockerhub-readme.md
+          # A page that still advertises GHCR means the rewrite silently missed,
+          # which is invisible until someone runs a pull command that fails.
+          if grep -q "ghcr.io/${OWNER,,}/flutter" /tmp/dockerhub-readme.md; then
+            echo "README still names the GHCR image after the rewrite." >&2
+            exit 1
+          fi
+
+      - name: Push it to Docker Hub
+        uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ vars.DOCKERHUB_REPO }}
+          readme-filepath: /tmp/dockerhub-readme.md
+          short-description: "Flutter SDK images with the Android SDK, built daily from Flutter's release manifest. amd64 and arm64."
