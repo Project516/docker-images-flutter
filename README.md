@@ -90,9 +90,17 @@ channel and a force flag for rebuilding something already published.
 GHCR needs no configuration: the built-in `GITHUB_TOKEN` is enough.
 
 Docker Hub is opt-in. Set the repository variable `DOCKERHUB_REPO` (for example
-`project516/flutter`) and the secrets `DOCKERHUB_USERNAME` and
+`project516/docker-images-flutter`) and the secrets `DOCKERHUB_USERNAME` and
 `DOCKERHUB_TOKEN`, and each published manifest is copied there too. Leave them
 unset and that job is skipped, so a fork of this works with no setup at all.
+
+`DOCKERHUB_TOKEN` is a Docker Hub personal access token with Read & Write on
+the target repository, not an account password.
+
+The mirror runs as part of a release. To put a tag on Docker Hub that published
+before the mirror was configured, run the "Mirror to Docker Hub" workflow from
+the Actions tab with that version tag. It copies the existing manifest list out
+of GHCR, so nothing is rebuilt.
 
 ## Known rough edges
 
