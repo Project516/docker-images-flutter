@@ -14,8 +14,10 @@ on:
         description: "Version tag already in GHCR, for example 3.35.4"
         required: true
       channel:
-        description: "Channel alias to move (stable or beta)"
+        description: "Channel alias to move"
         required: true
+        type: choice
+        options: [stable, beta]
         default: stable
 
 permissions:
