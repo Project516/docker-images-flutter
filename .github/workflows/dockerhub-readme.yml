@@ -53,4 +53,6 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: ${{ vars.DOCKERHUB_REPO }}
           readme-filepath: /tmp/dockerhub-readme.md
-          short-description: "Flutter SDK images with the Android SDK, built daily from Flutter's release manifest. amd64 and arm64."
+          # Docker Hub truncates this at 100 characters, silently and
+          # mid-word, so it has to be counted rather than eyeballed.
+          short-description: "Flutter SDK images with the Android SDK, built daily from Flutter's release manifest. amd64/arm64."
