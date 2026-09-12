@@ -7,10 +7,6 @@
 #
 # Runs daily and on demand. A channel whose current version is already
 # published is skipped, so the usual run does nothing and costs a few seconds.
-#
-# Publishes to GHCR with no secret beyond the built-in GITHUB_TOKEN. Docker Hub
-# is opt-in: set DOCKERHUB_USERNAME and DOCKERHUB_TOKEN and it mirrors there
-# too, and stays skipped while they are unset.
 
 name: Build images
 
