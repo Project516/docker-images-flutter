@@ -1,4 +1,4 @@
-FROM eclipse-temurin:25-jdk-noble@sha256:acfffa436ed09ee497b10c614485beb4dc8628cb740b4ea7daf395113d7ff698
+FROM eclipse-temurin:25-jdk-noble@sha256:a75cd2f1bd3e1e45da898bf658f1f1039ab7392b34844862514d230fd6a516d4
 
 USER root
 
