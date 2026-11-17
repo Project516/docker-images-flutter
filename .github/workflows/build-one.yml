@@ -111,6 +111,7 @@ jobs:
           set -euo pipefail
           docker run --rm -w /tmp "smoke-test:${{ matrix.slug }}" bash -lc '
             set -euo pipefail
+            java -XX:+PrintFlagsFinal -version 2>&1 | grep -Eq "UseBASE64Intrinsics[[:space:]]*=[[:space:]]*false"
             flutter create smoke
             cd smoke
             flutter pub get

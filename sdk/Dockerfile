@@ -1,5 +1,8 @@
 FROM eclipse-temurin:25-jdk-noble@sha256:80f67fb3d6f76e2d817d98a4cc2a9cf05f054d4e6adc5e2144bde671d722e63f
 
+# Mitigate CVE-2026-114938 until the pinned JDK contains the upstream fix.
+ENV JAVA_TOOL_OPTIONS="-XX:-UseBASE64Intrinsics"
+
 USER root
 
 # Pinned versions. Bumping any of these is a one-line change.

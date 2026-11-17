@@ -31,6 +31,11 @@ the build is Docker-specific.
 
 `linux/amd64` and `linux/arm64` under every tag.
 
+New builds disable the JVM Base64 intrinsic to mitigate CVE-2026-114938 while
+the pinned JDK is awaiting an update. Do not remove this option if you override
+`JAVA_TOOL_OPTIONS`. Existing image tags must be rebuilt and pulled again to
+receive the mitigation.
+
 **Pin the exact version in CI.** `stable` is convenient locally and a moving
 target everywhere else, which is how a green format gate on a laptop and a red
 one in CI stop being contradictory: `dart format` output changes between Dart
